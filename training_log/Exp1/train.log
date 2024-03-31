@@ -1,0 +1,8 @@
+[INFO 03-07 15:20:21] ------------- Exp1 -------------
+[INFO 03-07 15:20:21] Batch size: 32
+[INFO 03-07 15:20:21] Learning rate: 0.0001
+[INFO 03-07 15:20:21] Use device: cuda
+[INFO 03-07 15:20:27] Model Params: 9962979
+[INFO 03-07 15:20:27] Dataset Prepared: 127 train data, 0 validation data
+
+[INFO 03-07 15:20:27] Epoch 1/20
