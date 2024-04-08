@@ -177,15 +177,25 @@ class DataProcessor:
 
         # 检查是否找到车道
         if nearest_lane:
+            # lane = NuPlanLane(
+            #     nearest_lane.id,
+            #     map_data.get_available_map_objects()[0],
+            #     map_data.get_available_map_objects()[1],
+            #     map_data.get_available_map_objects()[SemanticMapLayer.BASELINE_PATHS],
+            #     map_data.get_available_map_objects()[SemanticMapLayer.BOUNDARIES],
+            #     map_data.get_available_map_objects()[4],
+            #     map_data.get_available_map_objects()[1],
+            #     map_data
+            # )
             lane = NuPlanLane(
                 nearest_lane.id,
-                map_data.get_available_map_objects()[0],
-                map_data.get_available_map_objects()[SemanticMapLayer.LANE_CONNECTOR],
-                map_data.get_available_map_objects()[SemanticMapLayer.BASELINE_PATHS],
-                map_data.get_available_map_objects()[SemanticMapLayer.BOUNDARIES],
-                map_data.get_available_map_objects()[SemanticMapLayer.STOP_LINE],
-                map_data.get_available_map_objects()[SemanticMapLayer.LANE_CONNECTOR],
-                map_data
+                map_data._get_vector_map_layer(SemanticMapLayer.LANE),
+                map_data._get_vector_map_layer(SemanticMapLayer.LANE_CONNECTOR),
+                map_data._get_vector_map_layer(SemanticMapLayer.BASELINE_PATHS),
+                map_data._get_vector_map_layer(SemanticMapLayer.BOUNDARIES),
+                map_data._get_vector_map_layer(SemanticMapLayer.STOP_LINE),
+                map_data._load_vector_map_layer(map_data._LANE_CONNECTOR_POLYGON_LAYER),
+                self
             )
 
             # 检查点是否在车道的多边形内
@@ -219,8 +229,8 @@ class DataProcessor:
 
 if __name__ == "__main__":
     # 设置数据集和地图的路径
-    data_root = '/home/peter/GameFormer-Planner/nuplan/dataset/nuplan-v1.1'
-    map_root = '/home/peter/GameFormer-Planner/nuplan/dataset/maps'
+    data_root = '/home/arc/nuplan/dataset/nuplan-v1.1'
+    map_root = '/home/arc/nuplan/dataset/maps'
 
     # 设置数据库文件和地图版本
     db_files = [
