@@ -68,7 +68,7 @@ def normalize_and_compute_likeness(traj_features, ego_future, ego_past):
 
     return traj_features, human_likeness, max_feat
 
-def polynomial_trajectory_sampler(current_state, target_state, obstacle_states, horizon=1):
+def polynomial_trajectory_sampler(current_state, target_state, obstacle_states, horizon=3):
     # 从当前状态到目标状态采样一条多项式轨迹
     # current_state: 当前状态 [x, y, v, heading]
     # target_state: 目标状态 [x, y, v, heading]
