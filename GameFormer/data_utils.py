@@ -165,16 +165,16 @@ def agent_past_process(past_ego_states, past_time_stamps, past_tracked_objects, 
 
         for agent_state in padded_agent_states:
             local_coords_agent_states.append(convert_absolute_quantities_to_relative(agent_state, anchor_ego_state, 'agent'))
-    
+
         # Calculate yaw rate
         yaw_rate_horizon = compute_yaw_rate_from_state_tensors(padded_agent_states, time_stamps)
-    
+
         agents_tensor = pack_agents_tensor(local_coords_agent_states, yaw_rate_horizon)
 
     '''
     Post-process the agents tensor to select a fixed number of agents closest to the ego vehicle.
     agents: <np.ndarray: num_agents, num_frames, 11>]].
-        Agent type is one-hot encoded: [1, 0, 0] vehicle, [0, 1, 0] pedestrain, [0, 0, 1] bicycle 
+        Agent type is one-hot encoded: [1, 0, 0] vehicle, [0, 1, 0] pedestrain, [0, 0, 1] bicycle
             and added to the feature of the agent
         The num_agents is padded or trimmed to fit the predefined number of agents across.
         The num_frames includes both present and past frames.
@@ -199,12 +199,12 @@ def agent_past_process(past_ego_states, past_time_stamps, past_tracked_objects, 
 
 
 def agent_future_process(anchor_ego_state, future_tracked_objects, num_agents, agent_index):
-    anchor_ego_state = torch.tensor([anchor_ego_state.rear_axle.x, anchor_ego_state.rear_axle.y, anchor_ego_state.rear_axle.heading, 
+    anchor_ego_state = torch.tensor([anchor_ego_state.rear_axle.x, anchor_ego_state.rear_axle.y, anchor_ego_state.rear_axle.heading,
                                      anchor_ego_state.dynamic_car_state.rear_axle_velocity_2d.x,
                                      anchor_ego_state.dynamic_car_state.rear_axle_velocity_2d.y,
                                      anchor_ego_state.dynamic_car_state.rear_axle_acceleration_2d.x,
                                      anchor_ego_state.dynamic_car_state.rear_axle_acceleration_2d.y])
-    
+
     agent_future = filter_agents_tensor(future_tracked_objects)
     local_coords_agent_states = []
     for agent_state in agent_future:
@@ -279,7 +279,7 @@ def convert_feature_layer_to_fixed_size(ego_pose, feature_coords, feature_tl_dat
     # pad or trim waypoints in a map element
     for idx, element_idx in enumerate(sorted_elements):
         element_coords = feature_coords[element_idx[0]]
-    
+
         # interpolate to maintain fixed size if the number of points is not enough
         element_coords = interpolate_points(element_coords, max_points, interpolation=interpolation)
         coords_tensor[idx] = element_coords
@@ -396,7 +396,7 @@ def map_process(anchor_state, coords, traffic_light_data, map_features, max_elem
     availabilities: Dict[str, List[<np.ndarray: num_elements, num_points>]].
             Boolean indicator of whether feature data is available for point at given index or if it is zero-padded.
     """
-    
+
     tensor_output = {}
     traffic_light_encoding_dim = LaneSegmentTrafficLightData.encoding_dim()
 
@@ -474,14 +474,14 @@ def polyline_process(polylines, avails, traffic_light=None):
     new_polylines = np.zeros(shape=(polylines.shape[0], polylines.shape[1], dim), dtype=np.float32)
 
     for i in range(polylines.shape[0]):
-        if avails[i][0]: 
+        if avails[i][0]:
             polyline = polylines[i]
             polyline_heading = wrap_to_pi(np.arctan2(polyline[1:, 1]-polyline[:-1, 1], polyline[1:, 0]-polyline[:-1, 0]))
             polyline_heading = np.insert(polyline_heading, -1, polyline_heading[-1])[:, np.newaxis]
             if traffic_light is None:
                 new_polylines[i] = np.concatenate([polyline, polyline_heading], axis=-1)
             else:
-                new_polylines[i] = np.concatenate([polyline, polyline_heading, traffic_light[i]], axis=-1)  
+                new_polylines[i] = np.concatenate([polyline, polyline_heading, traffic_light[i]], axis=-1)
 
     return new_polylines
 
@@ -537,8 +537,8 @@ def create_map_raster(lanes, crosswalks, route_lanes):
 
 
 def draw_trajectory(ego_trajectory, agent_trajectories):
-    # plot ego 
-    plt.plot(ego_trajectory[:, 0], ego_trajectory[:, 1], 'r', linewidth=3, zorder=3)
+    # plot ego
+    plt.plot(ego_trajectory[:, 0], ego_trajectory[:, 1], 'r', linewidth=2, zorder=3)
 
     # plot others
     for i in range(agent_trajectories.shape[0]):

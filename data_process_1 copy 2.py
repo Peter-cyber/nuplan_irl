@@ -229,8 +229,8 @@ class DataProcessor:
 
 if __name__ == "__main__":
     # 设置数据集和地图的路径
-    data_root = '/home/arc/nuplan/dataset/nuplan-v1.1'
-    map_root = '/home/arc/nuplan/dataset/maps'
+    data_root = '/home/peter/GameFormer-Planner/nuplan/dataset/nuplan-v1.1'
+    map_root = '/home/peter/GameFormer-Planner/nuplan/dataset/maps'
 
     # 设置数据库文件和地图版本
     db_files = [
