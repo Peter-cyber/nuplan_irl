@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from data_process import create_map_raster, create_ego_raster, create_agents_raster, draw_trajectory
 
 # 加载npz数据
-data = np.load('/home/peter/GameFormer-Planner/nuplan/processed_data/us-ma-boston_0a0aaeab5a25507e.npz')
+data = np.load('/home/peter/GameFormer-Planner/nuplan/processed_data/us-ma-boston_2e56a99796f158de.npz')
 
 # 提取所需数据
 ego_past = data['ego_agent_past']
@@ -66,54 +66,74 @@ def normalize_and_compute_likeness(traj_features, ego_future, ego_past):
 
     return traj_features, human_likeness, max_feat
 
-def polynomial_trajectory_sampler(current_state, target_state, obstacle_states, horizon=3):
-    # 从当前状态到目标状态采样一条多项式轨迹
-    # current_state: 当前状态 [x, y, v, heading]
+def polynomial_trajectory_sampler(current_state, target_state, obstacle_states, T=4.1):
+    # 从起点状态到目标状态采样一条多项式轨迹
+    # current_state: 起点状态 [x, y, v, heading]
     # target_state: 目标状态 [x, y, v, heading]
     # obstacle_states: 障碍物状态列表,每个元素为 [x, y, v, heading]
-    # horizon: 轨迹时长
+    # T: 轨迹持续时间
 
-    # 计算初始状态和目标状态的航向角差异
-    heading_diff = target_state[3] - current_state[3]
-    # print(heading_diff)
+    # 提取起点和终点状态的位置、速度和航向
+    start_x, start_y, start_v, start_heading = current_state
+    end_x, end_y, end_v, end_heading = target_state
 
-    # 根据航向角差异计算采样的目标位置
-    target_x = current_state[0] + 5 * horizon * np.cos(current_state[3] + heading_diff / 2)
-    target_y = current_state[1] + 5 * horizon * np.sin(current_state[3] + heading_diff / 2)
+    # 计算起点和终点的速度和加速度分量
+    start_vx = start_v * np.cos(start_heading)
+    start_vy = start_v * np.sin(start_heading)
+    start_ax = 0  # 假设起点加速度为0
+    start_ay = 0
+    end_vx = end_v * np.cos(end_heading)
+    end_vy = end_v * np.sin(end_heading)
+    end_ax = 0  # 假设终点加速度为0
+    end_ay = 0
 
-    # 生成5次多项式系数矩阵A
-    A = np.array([
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 2, 0, 0, 0],
-        [1, horizon, horizon**2, horizon**3, horizon**4, horizon**5],
-        [0, 1, 2 * horizon, 3 * horizon**2, 4 * horizon**3, 5 * horizon**4],
-        [0, 0, 2, 6 * horizon, 12 * horizon**2, 20 * horizon**3]
+    # 生成边界条件矩阵和边界向量
+    # 对于纵向位置x,我们需要一个4阶多项式,对于横向位置y,我们需要一个5阶多项式
+    # 4阶多项式形式: ax^4 + bx^3 + cx^2 + dx + e
+    # 5阶多项式形式: ax^5 + bx^4 + cx^3 + dx^2 + ex + f
+
+    # x轴边界条件
+    x_conditions = np.array([
+        [0, 0, 0, 0, 1],          # x(0)
+        [0, 0, 0, 1, 0],          # x'(0)
+        [0, 0, 2, 0, 0],          # x''(0)
+        [T**4, T**3, T**2, T, 1],  # x(T)
+        [4*T**3, 3*T**2, 2*T, 1, 0]   # x'(T)
     ])
+    x_boundary = np.array([start_x, start_vx, start_ax, end_x, end_vx])
 
-    # 生成纵向边界条件向量b_x
-    b_x = np.array([current_state[0], current_state[2] * np.cos(current_state[3]), current_state[2] * np.sin(current_state[3]),
-                    target_x, target_state[2] * np.cos(target_state[3]), 0])
-
-    # 生成横向边界条件向量b_y
-    b_y = np.array([current_state[1], current_state[2] * np.sin(current_state[3]), current_state[2] * np.cos(current_state[3]),
-                    target_y, target_state[2] * np.sin(target_state[3]), 0])
+    # y轴边界条件
+    y_conditions = np.array([
+        [0, 0, 0, 0, 0, 1],          # y(0)
+        [0, 0, 0, 0, 1, 0],          # y'(0)
+        [0, 0, 0, 2, 0, 0],          # y''(0)
+        [T**5, T**4, T**3, T**2, T, 1],  # y(T)
+        [5*T**4, 4*T**3, 3*T**2, 2*T, 1, 0],  # y'(T)
+        [20*T**3, 12*T**2, 6*T, 2, 0, 0]   # y''(T)
+    ])
+    y_boundary = np.array([start_y, start_vy, start_ay, end_y, end_vy, end_ay])
 
     # 解多项式系数
-    coeffs_x = np.linalg.solve(A, b_x)
-    coeffs_y = np.linalg.solve(A, b_y)
+    x_coeffs = np.linalg.solve(x_conditions, x_boundary)
+    y_coeffs = np.linalg.solve(y_conditions, y_boundary)
 
     # 采样轨迹点
-    times = np.linspace(0, horizon, num=horizon * 10)
-    traj_x = np.polyval(coeffs_x, times)
-    traj_y = np.polyval(coeffs_y, times)
-    traj_v = np.sqrt(np.gradient(traj_x, times)**2 + np.gradient(traj_y, times)**2)
-    traj_heading = np.arctan2(np.gradient(traj_y, times), np.gradient(traj_x, times))
+    times = np.arange(0, T, 0.1)  # 生成时间点,间隔为0.1秒
+    traj_x = np.polyval(x_coeffs, times)
+    traj_y = np.polyval(y_coeffs, times)
+    traj_vx = np.polyval(np.polyder(x_coeffs, 1), times)
+    traj_vy = np.polyval(np.polyder(y_coeffs, 1), times)
+    traj_ax = np.polyval(np.polyder(x_coeffs, 2), times)
+    traj_ay = np.polyval(np.polyder(y_coeffs, 2), times)
 
-    # 将轨迹点组装成轨迹
-    sampled_traj = np.column_stack((traj_x, traj_y, traj_v, traj_heading))
+    traj_v = np.sqrt(traj_vx**2 + traj_vy**2)
+    traj_a = np.sqrt(traj_ax**2 + traj_ay**2)
+    traj_heading = np.arctan2(traj_vy, traj_vx)
 
+    # 组装轨迹点为[x, y, v, a, heading]形式
+    sampled_traj = np.column_stack((traj_x, traj_y, traj_v, traj_a, traj_heading))
     return sampled_traj
+
 
 def plot_scenario(ego_past, ego_future, neighbors_past, neighbors_future, lanes, route_lanes, crosswalks, sampled_trajs):
     # Create map layers
@@ -156,7 +176,7 @@ def weighted_trajectory_sampler(current_state, target_state, obstacle_states, th
 # 最后,我们根据 reward 的大小对采样轨迹进行排序,并返回 reward 最大的轨迹作为最终的采样结果。
 
 # 定义超参数
-n_iters = 100
+n_iters = 1
 lr = 0.01
 lam = 0.1
 

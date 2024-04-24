@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 from data_process import create_map_raster, create_ego_raster, create_agents_raster, draw_trajectory
 
 # 加载npz数据
-data = np.load('/home/peter/GameFormer-Planner/nuplan/processed_data/us-ma-boston_0a0aaeab5a25507e.npz')
+data = np.load('/home/peter/GameFormer-Planner/nuplan/processed_data/us-nv-las-vegas-strip_449c72fc98805e7a.npz')
 
 # 提取所需数据
 ego_past = data['ego_agent_past']
@@ -66,53 +66,57 @@ def normalize_and_compute_likeness(traj_features, ego_future, ego_past):
 
     return traj_features, human_likeness, max_feat
 
-def polynomial_trajectory_sampler(current_state, target_state, obstacle_states, horizon=3):
-    # 从当前状态到目标状态采样一条多项式轨迹
-    # current_state: 当前状态 [x, y, v, heading]
+def polynomial_trajectory_sampler(current_state, target_state, obstacle_states, T=1):
+    # 从起点状态到目标状态采样一条多项式轨迹
+    # current_state: 起点状态 [x, y, v, heading]
     # target_state: 目标状态 [x, y, v, heading]
     # obstacle_states: 障碍物状态列表,每个元素为 [x, y, v, heading]
-    # horizon: 轨迹时长
+    # T: 轨迹持续时间
 
-    # 计算初始状态和目标状态的航向角差异
-    heading_diff = target_state[3] - current_state[3]
-    # print(heading_diff)
+    # 提取起点和终点状态
+    start_x, start_y, start_v, start_heading = current_state
+    end_x, end_y, end_v, end_heading = target_state
 
-    # 根据航向角差异计算采样的目标位置
-    target_x = current_state[0] + 5 * horizon * np.cos(current_state[3] + heading_diff / 2)
-    target_y = current_state[1] + 5 * horizon * np.sin(current_state[3] + heading_diff / 2)
+    # 生成随机的中间速度和航向角
+    mid_v = np.random.uniform(min(start_v, end_v), max(start_v, end_v))
+    mid_heading = np.random.uniform(min(start_heading, end_heading), max(start_heading, end_heading))
 
-    # 生成5次多项式系数矩阵A
-    A = np.array([
-        [1, 0, 0, 0, 0, 0],
-        [0, 1, 0, 0, 0, 0],
-        [0, 0, 2, 0, 0, 0],
-        [1, horizon, horizon**2, horizon**3, horizon**4, horizon**5],
-        [0, 1, 2 * horizon, 3 * horizon**2, 4 * horizon**3, 5 * horizon**4],
-        [0, 0, 2, 6 * horizon, 12 * horizon**2, 20 * horizon**3]
+    # 纵向轨迹的边界条件
+    x_conditions = np.array([
+        [0, 0, 0, 0, 1],
+        [0, 0, 0, 1, 0],
+        [0, 0, 2, 0, 0],
+        [T**4, T**3, T**2, T, 1],
+        [4*T**3, 3*T**2, 2*T, 1, 0]
     ])
+    x_boundary = np.array([start_x, start_v * np.cos(start_heading), mid_v * np.sin(mid_heading),
+                           end_x, end_v * np.cos(end_heading)])
 
-    # 生成纵向边界条件向量b_x
-    b_x = np.array([current_state[0], current_state[2] * np.cos(current_state[3]), current_state[2] * np.sin(current_state[3]),
-                    target_x, target_state[2] * np.cos(target_state[3]), 0])
-
-    # 生成横向边界条件向量b_y
-    b_y = np.array([current_state[1], current_state[2] * np.sin(current_state[3]), current_state[2] * np.cos(current_state[3]),
-                    target_y, target_state[2] * np.sin(target_state[3]), 0])
+    # 横向轨迹的边界条件
+    y_conditions = np.array([
+        [0, 0, 0, 0, 0, 1],
+        [0, 0, 0, 0, 1, 0],
+        [0, 0, 0, 2, 0, 0],
+        [T**5, T**4, T**3, T**2, T, 1],
+        [5*T**4, 4*T**3, 3*T**2, 2*T, 1, 0],
+        [20*T**3, 12*T**2, 6*T, 2, 0, 0]
+    ])
+    y_boundary = np.array([start_y, start_v * np.sin(start_heading), mid_v * np.cos(mid_heading),
+                           end_y, end_v * np.sin(end_heading), 0])
 
     # 解多项式系数
-    coeffs_x = np.linalg.solve(A, b_x)
-    coeffs_y = np.linalg.solve(A, b_y)
+    x_coeffs = np.linalg.solve(x_conditions, x_boundary)
+    y_coeffs = np.linalg.solve(y_conditions, y_boundary)
 
     # 采样轨迹点
-    times = np.linspace(0, horizon, num=horizon * 10)
-    traj_x = np.polyval(coeffs_x, times)
-    traj_y = np.polyval(coeffs_y, times)
+    times = np.linspace(0, T, num=T*10)
+    traj_x = np.polyval(x_coeffs, times)
+    traj_y = np.polyval(y_coeffs, times)
     traj_v = np.sqrt(np.gradient(traj_x, times)**2 + np.gradient(traj_y, times)**2)
     traj_heading = np.arctan2(np.gradient(traj_y, times), np.gradient(traj_x, times))
 
     # 将轨迹点组装成轨迹
     sampled_traj = np.column_stack((traj_x, traj_y, traj_v, traj_heading))
-
     return sampled_traj
 
 def plot_scenario(ego_past, ego_future, neighbors_past, neighbors_future, lanes, route_lanes, crosswalks, sampled_trajs):
